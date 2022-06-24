@@ -12,10 +12,13 @@
 #include <vector>
 #include <atomic>
 
+#include "Debug.hpp"
+
+
 // 线程池类
 class ThreadPool {
 public:
-    // 参数thread_number是线程池中线程的数量，max_requests是请求队列中最多允许的、等待处理的请求的数量
+    // 参数thread_number是线程池中线程的数量
     explicit ThreadPool(int thread_number) : pool(std::make_shared<Pool>()) {
         for (int i = 0; i < thread_number; i++) {
             std::thread([pool_ = pool, i] {

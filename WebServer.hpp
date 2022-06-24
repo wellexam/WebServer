@@ -10,16 +10,19 @@
 #include <arpa/inet.h>
 #include <string>
 #include <cstring>
+#include <sys/timerfd.h>
 
 #include "ThreadPool.hpp"
 #include "Epoller.hpp"
 #include "HttpConn.hpp"
+#include "HeapTimer.hpp"
 
 class WebServer {
     char *srcDir;
     int port;
     bool isClosed;
     int listenFd;
+    int timeoutMS; /* 毫秒MS */
 
     uint32_t listenEvent_;
     uint32_t connEvent_;
@@ -27,6 +30,7 @@ class WebServer {
     std::unique_ptr<Epoller> epoller;
     std::unordered_map<int, std::shared_ptr<HttpConn>> clients;
     std::unique_ptr<ThreadPool> threadpool;
+    std::unique_ptr<HeapTimer> timer;
 
     static const int MAX_FD = 65536;
 
@@ -39,19 +43,21 @@ class WebServer {
     void onWrite(const std::shared_ptr<HttpConn> &);
     void onProcess(const std::shared_ptr<HttpConn> &);
 
-    void sendError(int fd, const char *info);
+    static void sendError(int fd, const char *info);
 
     int setFdNonblock(int fd);
     void addClient(int fd, sockaddr_in addr);
+    void extentTime(const std::shared_ptr<HttpConn> &client);
 
 public:
-    WebServer(int port);
+    WebServer(int _port, int _threadNum, int _timeoutMS);
     ~WebServer();
 
     bool initSocket();
     void start();
 };
-WebServer::WebServer(int port) : port(port), isClosed(false), threadpool(std::make_unique<ThreadPool>(20)), epoller(std::make_unique<Epoller>()) {
+WebServer::WebServer(int _port, int _threadNum, int _timeoutMS) :
+    port(_port), isClosed(false), threadpool(std::make_unique<ThreadPool>(_threadNum)), epoller(std::make_unique<Epoller>()), timeoutMS(_timeoutMS), timer(std::make_unique<HeapTimer>()) {
     srcDir = getcwd(nullptr, 256);
     assert(srcDir);
     strncat(srcDir, "/resources/", 16);
@@ -71,7 +77,17 @@ WebServer::~WebServer() {
 }
 void WebServer::start() {
     int timeMS = -1;
+#ifdef DEBUG
+    int timerFd = timerfd_create(CLOCK_REALTIME, TFD_NONBLOCK | TFD_CLOEXEC);
+    itimerspec new_value{timespec{1}, timespec{1}};
+    timerfd_settime(timerFd, 0, &new_value, nullptr);
+    epoller->addFd(timerFd, EPOLLIN);
+#endif
     while (!isClosed) {
+        if (timeoutMS > 0) {
+            timeMS = timer->getNextTick();
+            // printf("timeMS = %d\n", timeMS);
+        }
         int eventCount = epoller->wait(timeMS);
         for (int i = 0; i < eventCount; i++) {
             int fd = epoller->getEventFd(i);
@@ -80,8 +96,17 @@ void WebServer::start() {
                 handleAccept();
             } else if (events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
                 assert(clients.count(fd) > 0);
+                // printf("main loop closed %d \n", fd);
                 closeConn(clients[fd]);
             } else if (events & EPOLLIN) {
+#ifdef DEBUG
+                if (fd == timerFd) {
+                    char buf[10];
+                    read(timerFd, buf, 10);
+                    timer->heap_size();
+                    continue;
+                }
+#endif
                 assert(clients.count(fd) > 0);
                 handleRead(clients[fd]);
             } else if (events & EPOLLOUT) {
@@ -157,6 +182,9 @@ void WebServer::addClient(int fd, sockaddr_in addr) {
     assert(fd > 0);
     clients[fd] = std::make_shared<HttpConn>();
     clients[fd]->init(fd, addr);
+    if (timeoutMS > 0) {
+        timer->add(fd, timeoutMS, [this, client = clients[fd]] { closeConn(client); });
+    }
     epoller->addFd(fd, EPOLLIN | connEvent_);
     setFdNonblock(fd);
 }
@@ -171,11 +199,13 @@ void WebServer::handleAccept() {
             sendError(fd, "Server busy!");
             return;
         }
+        // printf("%d accepted\n", fd);
         addClient(fd, addr);
     } while (listenEvent_ & EPOLLET);
 }
 void WebServer::handleRead(const std::shared_ptr<HttpConn> &client) {
     assert(client);
+    extentTime(client);
     threadpool->append([this, client] { onRead(client); });
 }
 void WebServer::onRead(const std::shared_ptr<HttpConn> &client) {
@@ -184,6 +214,7 @@ void WebServer::onRead(const std::shared_ptr<HttpConn> &client) {
     int readErrno = 0;
     auto ret = client->read(&readErrno);
     if (ret <= 0 && readErrno != EAGAIN) {
+        // printf("onRead closed %d \n", client->GetFd());
         closeConn(client);
         return;
     }
@@ -198,13 +229,14 @@ void WebServer::onProcess(const std::shared_ptr<HttpConn> &client) {
 }
 void WebServer::handleWrite(const std::shared_ptr<HttpConn> &client) {
     assert(client);
+    extentTime(client);
     threadpool->append([this, client] { onWrite(client); });
 }
 void WebServer::onWrite(const std::shared_ptr<HttpConn> &client) {
     assert(client);
-    int ret = -1;
+    // int ret = -1;
     int writeErrno = 0;
-    ret = client->write(&writeErrno);
+    auto ret = client->write(&writeErrno);
     if (client->ToWriteBytes() == 0) {
         if (client->IsKeepAlive()) {
             onProcess(client);
@@ -217,6 +249,7 @@ void WebServer::onWrite(const std::shared_ptr<HttpConn> &client) {
         }
     }
     closeConn(client);
+    // printf("onWrite closed %d \n", client->GetFd());
 }
 void WebServer::sendError(int fd, const char *info) {
     assert(fd > 0);
@@ -225,4 +258,11 @@ void WebServer::sendError(int fd, const char *info) {
         // Log error
     }
     close(fd);
+}
+
+void WebServer::extentTime(const std::shared_ptr<HttpConn> &client) {
+    assert(client);
+    if (timeoutMS > 0) {
+        timer->adjust(client->GetFd(), timeoutMS);
+    }
 }

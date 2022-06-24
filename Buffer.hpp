@@ -7,6 +7,9 @@
 #include <vector>    //readv
 #include <atomic>
 #include <cassert>
+
+#include "Debug.hpp"
+
 class Buffer {
 public:
     Buffer(int initBuffSize = 1024);
