@@ -3,8 +3,10 @@ project(WebServer)
 
 set(CMAKE_CXX_STANDARD 14)
 include_directories(./*)
+file(GLOB SOURCES "*.cpp")
+MESSAGE(STATUS "sources =  ${SOURCES}")
 
-add_executable(WebServer main.cpp)
+add_executable(WebServer ${SOURCES})
 
 IF (CMAKE_BUILD_TYPE STREQUAL Debug)
     ADD_DEFINITIONS(-DDEBUG)

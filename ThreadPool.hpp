@@ -14,7 +14,6 @@
 
 #include "Debug.hpp"
 
-
 // 线程池类
 class ThreadPool {
 public:
@@ -38,7 +37,14 @@ public:
             }).detach();
         }
     }
-    ~ThreadPool();
+    ~ThreadPool() {
+        //{
+        //    std::lock_guard<std::mutex> lk(pool->mut);
+        //    pool->isClosed = true;
+        //}
+        pool->isClosed = true;
+        pool->cond.notify_all();
+    }
 
     // 往请求队列中添加任务
 
@@ -61,14 +67,14 @@ private:
     std::shared_ptr<Pool> pool;
 };
 
-ThreadPool::~ThreadPool() {
-    //{
-    //    std::lock_guard<std::mutex> lk(pool->mut);
-    //    pool->isClosed = true;
-    //}
-    pool->isClosed = true;
-    pool->cond.notify_all();
-}
+// ThreadPool::~ThreadPool() {
+//     //{
+//     //    std::lock_guard<std::mutex> lk(pool->mut);
+//     //    pool->isClosed = true;
+//     //}
+//     pool->isClosed = true;
+//     pool->cond.notify_all();
+// }
 
 template <typename Func>
 bool ThreadPool::append(Func &&task) {
