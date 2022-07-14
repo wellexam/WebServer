@@ -1,0 +1,62 @@
+#pragma once
+
+#include <memory>
+#include <sys/eventfd.h>
+#include <unistd.h>
+#include <cassert>
+
+#include "ThreadPool.hpp"
+#include "Epoll.hpp"
+#include "Channel.hpp"
+
+class Reactor {
+    class PendingList {
+    public:
+        // 队列
+        std::vector<std::function<void()>> tasks;
+        // 任务队列的读写锁
+        std::mutex mut;
+    };
+
+    std::shared_ptr<PendingList> pendingList;
+    std::shared_ptr<ThreadPool> threadPool;
+    std::shared_ptr<Epoll> poller;
+
+    std::shared_ptr<Channel> wakeupChannel;
+
+    bool looping_;
+    bool quit_;
+
+public:
+    explicit Reactor(int threadNum = 20);
+
+    void loop();
+
+    void quit();
+
+    void removeFromPollerWithGuard(const std::shared_ptr<Channel> &channel);
+    void updatePollerWithGuard(const std::shared_ptr<Channel> &channel, int timeout = 0);
+    void addToPollerWithGuard(const std::shared_ptr<Channel> &channel, int timeout = 0);
+
+    std::shared_ptr<Channel> getChannel(int fd);
+
+    void appendToThreadPool(std::function<void()> &&task);
+
+    void addPendingTask(std::function<void()> &&task);
+
+private:
+    void removeFromPoller(const std::shared_ptr<Channel> &channel) { poller->epoll_del(channel); }
+    void updatePoller(const std::shared_ptr<Channel> &channel, int timeout = 0) {
+        poller->epoll_mod(channel);
+    }
+    void addToPoller(const std::shared_ptr<Channel> &channel, int timeout = 0) {
+        poller->epoll_add(channel);
+    }
+
+    void wakeup() {
+        char buf;
+        write(wakeupChannel->getFd(), &buf, sizeof buf);
+    }
+
+    void doPendingTasks();
+};

@@ -12,7 +12,7 @@
 #include <vector>
 #include <atomic>
 
-#include "Debug.hpp"
+//#include "Debug.hpp"
 
 // 线程池类
 class ThreadPool {
@@ -66,15 +66,6 @@ private:
 
     std::shared_ptr<Pool> pool;
 };
-
-// ThreadPool::~ThreadPool() {
-//     //{
-//     //    std::lock_guard<std::mutex> lk(pool->mut);
-//     //    pool->isClosed = true;
-//     //}
-//     pool->isClosed = true;
-//     pool->cond.notify_all();
-// }
 
 template <typename Func>
 bool ThreadPool::append(Func &&task) {

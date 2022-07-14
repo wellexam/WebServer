@@ -33,6 +33,7 @@ void HttpConn::Close() {
         isClose_ = true;
         userCount--;
         close(fd_);
+        printf("client with fd %d closed\n", fd_);
         // LOG_INFO("Client[%d](%s:%d) quit, UserCount:%d", fd_, GetIP(), GetPort(), (int)userCount);
     }
 }
