@@ -1,9 +1,13 @@
 #include "Reactor.hpp"
 
+#include "../log/log.h"
+
+#include <iostream>
+
 Reactor::Reactor(int threadNum) :
     threadPool(std::make_shared<ThreadPool>(threadNum)), poller(std::make_shared<Epoll>()),
     pendingList(std::make_shared<PendingList>()), looping_(false), quit_(false) {
-    int ret = eventfd(1, EFD_CLOEXEC | EFD_NONBLOCK);
+    int ret = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
     wakeupChannel = std::make_shared<Channel>(ret);
     wakeupChannel->setEvents(EPOLLIN);
     wakeupChannel->setReadHandler([ret] {
@@ -18,12 +22,29 @@ void Reactor::loop() {
     looping_ = true;
     quit_ = false;
     std::vector<SP_Channel> ret;
+    count = 0;
+    LOG_DEBUG("loop started!")
     while (!quit_) {
         ret.clear();
         ret = poller->poll();
-        for (auto &it : ret)
-            threadPool->append([it] { it->handleEvents(); });
+        // for (auto &it : ret)
+        //     threadPool->append([it, count] {
+        //         LOG_DEBUG("fd[%d], added to thread pool at loop %d", it->getFd(), count)
+        //         it->handleEvents();
+        //         LOG_DEBUG("fd[%d], added to thread pool at loop %d, finished", it->getFd(),
+        //         count)
+        //     });
+        for (int i = 0; i < ret.size(); i++) {
+            auto it = ret[i];
+            LOG_DEBUG("handling fd[%d] at loop %d", it->getFd(), count)
+            threadPool->append([it, count = this->count ] {
+                LOG_DEBUG("fd[%d], added to thread pool at loop %d", it->getFd(), count)
+                it->handleEvents();
+                LOG_DEBUG("fd[%d], added to thread pool at loop %d, finished", it->getFd(), count)
+            });
+        }
         doPendingTasks();
+        ++count;
     }
     looping_ = false;
 }
@@ -40,6 +61,7 @@ void Reactor::doPendingTasks() {
         tempList.swap(pendingList->tasks);
     }
     for (auto &task : tempList) {
+        LOG_DEBUG("doing pending tasks in loop %d", count)
         task();
     }
 }
@@ -49,7 +71,7 @@ std::shared_ptr<Channel> Reactor::getChannel(int fd) {
 }
 
 void Reactor::appendToThreadPool(std::function<void()> &&task) {
-    threadPool->template append(std::move(task));
+    threadPool->append(std::move(task));
 }
 
 void Reactor::removeFromPollerWithGuard(const std::shared_ptr<Channel> &channel) {

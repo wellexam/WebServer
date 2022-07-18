@@ -1,10 +1,12 @@
 #include "Server.hpp"
 
 #include "HttpConn.hpp"
+#include "log/log.h"
 
 #include <fcntl.h>  // fcntl()
 #include <unistd.h> // close()
 #include <sys/socket.h>
+#include <thread>
 
 Server::Server(int _port, int _threadNum, int _timeoutMS) :
     port(_port), reactor(std::make_shared<Reactor>(_threadNum)) {
@@ -13,27 +15,33 @@ Server::Server(int _port, int _threadNum, int _timeoutMS) :
     strncat(srcDir, "/resources/", 16);
     HttpConn::userCount = 0;
     HttpConn::srcDir = srcDir;
+    HttpConn::isET = true;
 
     listenEvent_ = EPOLLRDHUP;
     connEvent_ = EPOLLONESHOT | EPOLLRDHUP;
 
     listenEvent_ |= EPOLLET;
     connEvent_ |= EPOLLET;
+
+    Log::Instance()->init(0, "./log", ".log", 1024);
+    LOG_DEBUG("Server init finished")
 }
 
 Server::~Server() {
     reactor->quit();
     isClosed = true;
     free(srcDir);
+    LOG_DEBUG("Server quited.")
 }
 
 void Server::start() {
     if (!initSocket())
         perror("Socket init failed.\n");
+    LOG_DEBUG("listenFd is [%d].", listenFd)
     acceptor = std::make_shared<Channel>(listenFd);
     acceptor->setEvents(listenEvent_ | EPOLLIN);
     acceptor->setConnHandler([this] { handleAccept(); });
-    reactor->addToPollerWithGuard(acceptor);
+    reactor->addToPoller(acceptor);
     reactor->loop();
 }
 
@@ -94,13 +102,16 @@ void Server::handleAccept() {
             sendError(fd, "Server busy!");
             return;
         }
+        LOG_DEBUG("fd [%d] accepted", fd)
         addClient(fd, addr);
     } while (listenEvent_ & EPOLLET);
 }
 
 void Server::handleRead(const std::shared_ptr<HttpConn> &client) {
     assert(client);
+    LOG_DEBUG("handleRead() trying to append onRead() to thread pool on fd[%d]", client->GetFd())
     reactor->appendToThreadPool([this, client] { onRead(client); });
+    LOG_DEBUG("handleRead() finished to append onRead() to thread pool on fd[%d]", client->GetFd())
 }
 
 void Server::onRead(const std::shared_ptr<HttpConn> &client) {
@@ -108,25 +119,40 @@ void Server::onRead(const std::shared_ptr<HttpConn> &client) {
     int readErrno = 0;
     auto ret = client->read(&readErrno);
     if (ret <= 0 && readErrno != EAGAIN) {
+        LOG_DEBUG("onRead() called closeConn on client[%d]", client->GetFd())
         closeConn(client);
         return;
     }
+    LOG_DEBUG("onRead() called onProcess on client[%d]", client->GetFd())
     onProcess(client);
 }
 
 void Server::closeConn(const std::shared_ptr<HttpConn> &client) {
     assert(client);
     auto channel = reactor->getChannel(client->GetFd());
-    reactor->removeFromPollerWithGuard(channel);
-    reactor->addPendingTask([client] { client->Close(); });
+    assert(channel);
+    reactor->addPendingTask([this, channel, client] {
+        LOG_DEBUG("closeConn removing fd [%d] from poller", channel->getFd())
+        reactor->removeFromPoller(channel);
+        client->Close();
+    });
 }
 
 void Server::onProcess(const std::shared_ptr<HttpConn> &client) {
     if (client->process()) {
-        auto channel = reactor->getChannel(client->GetFd());
-        channel->setEvents(connEvent_ | EPOLLOUT);
-        channel->setWriteHandler([this, client] { handleWrite(client); });
-        reactor->updatePollerWithGuard(channel);
+        // auto channel = reactor->getChannel(client->GetFd());
+        // channel->setEvents(connEvent_ | EPOLLOUT);
+        // channel->setWriteHandler([this, client] {
+        //     LOG_DEBUG("handle write set from onProcess() called on client[%d]", client->GetFd())
+        //     handleWrite(client);
+        // });
+        // LOG_DEBUG("onProcess() set WriteHandler on client[%d]", client->GetFd())
+        // reactor->updatePollerWithGuard(channel);
+        // LOG_DEBUG("onProcess() updated WriteHandler on client[%d]", client->GetFd())
+        reactor->appendToThreadPool([this, client] {
+            LOG_DEBUG("onWrite append from onProcess() called on client[%d]", client->GetFd())
+            onWrite(client);
+        });
     } else {
         auto channel = reactor->getChannel(client->GetFd());
         channel->setEvents(connEvent_ | EPOLLIN);
@@ -136,7 +162,14 @@ void Server::onProcess(const std::shared_ptr<HttpConn> &client) {
 
 void Server::handleWrite(const std::shared_ptr<HttpConn> &client) {
     assert(client);
-    reactor->appendToThreadPool([this, client] { onWrite(client); });
+    LOG_DEBUG("handleWrite on client[%d] called,trying to append onWrite() to thread pool",
+              client->GetFd())
+    reactor->appendToThreadPool([this, client] {
+        LOG_DEBUG("onWrite append from handleWrite called on client[%d]", client->GetFd())
+        onWrite(client);
+    });
+    LOG_DEBUG("handleWrite on client[%d] finished to append onWrite() to thread pool",
+              client->GetFd())
 }
 
 void Server::onWrite(const std::shared_ptr<HttpConn> &client) {
@@ -145,6 +178,7 @@ void Server::onWrite(const std::shared_ptr<HttpConn> &client) {
     auto ret = client->write(&writeErrno);
     if (client->ToWriteBytes() == 0) {
         if (client->IsKeepAlive()) {
+            LOG_DEBUG("onWrite() called onProcess on client[%d]", client->GetFd())
             onProcess(client);
             return;
         }
@@ -152,11 +186,15 @@ void Server::onWrite(const std::shared_ptr<HttpConn> &client) {
         if (writeErrno == EAGAIN) {
             auto channel = reactor->getChannel(client->GetFd());
             channel->setEvents(connEvent_ | EPOLLOUT);
-            channel->setWriteHandler([this, client] { handleWrite(client); });
+            channel->setWriteHandler([this, client] {
+                LOG_DEBUG("onWrite set WriteHandler on client[%d]", client->GetFd())
+                handleWrite(client);
+            });
             reactor->updatePollerWithGuard(channel);
             return;
         }
     }
+    LOG_DEBUG("onWrite() called closeConn on client[%d]", client->GetFd())
     closeConn(client);
 }
 
@@ -168,7 +206,10 @@ void Server::addClient(int fd, sockaddr_in addr) {
     channel->setEvents(connEvent_ | EPOLLIN);
     auto client = clients[fd];
     channel->setReadHandler([this, client] { handleRead(client); });
-    channel->setCloseHandler([this, client] { closeConn(client); });
+    channel->setCloseHandler([this, client] {
+        LOG_DEBUG("closeHandler calling closeConn on client[%d]", client->GetFd())
+        closeConn(client);
+    });
     reactor->addToPollerWithGuard(channel);
     setFdNonblock(fd);
 }

@@ -26,6 +26,7 @@ class Reactor {
 
     bool looping_;
     bool quit_;
+    unsigned long long count = 0;
 
 public:
     explicit Reactor(int threadNum = 20);
@@ -44,7 +45,6 @@ public:
 
     void addPendingTask(std::function<void()> &&task);
 
-private:
     void removeFromPoller(const std::shared_ptr<Channel> &channel) { poller->epoll_del(channel); }
     void updatePoller(const std::shared_ptr<Channel> &channel, int timeout = 0) {
         poller->epoll_mod(channel);
@@ -53,6 +53,7 @@ private:
         poller->epoll_add(channel);
     }
 
+private:
     void wakeup() {
         char buf;
         write(wakeupChannel->getFd(), &buf, sizeof buf);

@@ -3,10 +3,10 @@ project(WebServer)
 
 set(CMAKE_CXX_STANDARD 14)
 include_directories(./*)
-include_directories(./net/*)
+include_directories(./*/*)
 file(GLOB SOURCES "*.cpp")
-file(GLOB SOURCE "net/*.cpp")
-MESSAGE(STATUS "sources =  ${SOURCES} source = ${SOURCE}")
+file(GLOB SOURCE "*/*.cpp")
+MESSAGE(STATUS "sources =  ${SOURCES} \n source = ${SOURCE}")
 
 add_executable(WebServer ${SOURCES} ${SOURCE})
 
