@@ -29,13 +29,13 @@ class Server {
     void addClient(int fd, sockaddr_in addr);
 
     void handleAccept();
-    void handleRead(std::shared_ptr<HttpConn> client);
-    void handleWrite(std::shared_ptr<HttpConn> client);
+    void handleRead(const std::shared_ptr<HttpConn>& client);
+    void handleWrite(const std::shared_ptr<HttpConn>& client);
 
-    void onRead(std::shared_ptr<HttpConn> client);
-    void onWrite(std::shared_ptr<HttpConn> client);
-    void onProcess(std::shared_ptr<HttpConn> client);
-    void closeConn(std::shared_ptr<HttpConn> client);
+    void onRead(const std::shared_ptr<HttpConn>& client);
+    void onWrite(const std::shared_ptr<HttpConn>& client);
+    void onProcess(const std::shared_ptr<HttpConn>& client);
+    void closeConn(const std::shared_ptr<HttpConn>& client);
 
 public:
     Server(int _port, int _threadNum, int _timeoutMS = 60000, bool openLog = false, int logLevel = 1);

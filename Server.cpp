@@ -109,14 +109,14 @@ void Server::handleAccept() {
     } while (listenEvent_ & EPOLLET);
 }
 
-void Server::handleRead(std::shared_ptr<HttpConn> client) {
+void Server::handleRead(const std::shared_ptr<HttpConn>& client) {
     assert(client);
     LOG_DEBUG("handleRead() trying to append onRead() to thread pool on fd[%d]", client->GetFd())
     reactor->appendToThreadPool([this, client] { onRead(client); });
     LOG_DEBUG("handleRead() finished to append onRead() to thread pool on fd[%d]", client->GetFd())
 }
 
-void Server::onRead(std::shared_ptr<HttpConn> client) {
+void Server::onRead(const std::shared_ptr<HttpConn>& client) {
     assert(client);
     int readErrno = 0;
     auto ret = client->read(&readErrno);
@@ -129,7 +129,7 @@ void Server::onRead(std::shared_ptr<HttpConn> client) {
     onProcess(client);
 }
 
-void Server::closeConn(std::shared_ptr<HttpConn> client) {
+void Server::closeConn(const std::shared_ptr<HttpConn>& client) {
     assert(client);
     auto channel = reactor->getChannel(client->GetFd());
     assert(channel);
@@ -142,7 +142,7 @@ void Server::closeConn(std::shared_ptr<HttpConn> client) {
     client->Close();
 }
 
-void Server::onProcess(std::shared_ptr<HttpConn> client) {
+void Server::onProcess(const std::shared_ptr<HttpConn>& client) {
     assert(client);
     if (client->process()) {
         reactor->appendToThreadPool([this, client] {
@@ -156,7 +156,7 @@ void Server::onProcess(std::shared_ptr<HttpConn> client) {
     }
 }
 
-void Server::handleWrite(std::shared_ptr<HttpConn> client) {
+void Server::handleWrite(const std::shared_ptr<HttpConn>& client) {
     assert(client);
     LOG_DEBUG("handleWrite on client[%d] called,trying to append onWrite() to thread pool",
               client->GetFd())
@@ -168,7 +168,7 @@ void Server::handleWrite(std::shared_ptr<HttpConn> client) {
               client->GetFd())
 }
 
-void Server::onWrite(std::shared_ptr<HttpConn> client) {
+void Server::onWrite(const std::shared_ptr<HttpConn>& client) {
     assert(client);
     int writeErrno = 0;
     auto ret = client->write(&writeErrno);
