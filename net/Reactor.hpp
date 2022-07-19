@@ -35,10 +35,6 @@ public:
 
     void quit();
 
-    void removeFromPollerWithGuard(const std::shared_ptr<Channel> &channel);
-    void updatePollerWithGuard(const std::shared_ptr<Channel> &channel, int timeout = 0);
-    void addToPollerWithGuard(const std::shared_ptr<Channel> &channel, int timeout = 0);
-
     std::shared_ptr<Channel> getChannel(int fd);
 
     void appendToThreadPool(std::function<void()> &&task);

@@ -9,6 +9,7 @@ const int EPOLLWAIT_TIME = 10000;
 
 Epoll::Epoll() : epollFd(epoll_create1(EPOLL_CLOEXEC)), events_(EVENTSNUM) {
     assert(epollFd > 0);
+    fd2chan_ = std::vector<SP_Channel>(MAXFDS);
 }
 
 Epoll::~Epoll() {
@@ -17,6 +18,7 @@ Epoll::~Epoll() {
 
 // 注册新描述符
 void Epoll::epoll_add(const SP_Channel &request) {
+    assert(request);
     int fd = request->getFd();
     epoll_event event{};
     event.data.fd = fd;
