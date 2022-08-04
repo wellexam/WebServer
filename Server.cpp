@@ -7,6 +7,8 @@
 #include <unistd.h> // close()
 #include <sys/socket.h>
 #include <thread>
+#include <cstdio>
+#include <iostream>
 
 Server::Server(int _port, int _threadNum, int _timeoutMS, bool openLog, int logLevel) :
     port(_port), reactor(std::make_shared<Reactor>(_threadNum)) {
@@ -44,6 +46,18 @@ void Server::start() {
     acceptor->setEvents(listenEvent_ | EPOLLIN);
     acceptor->setConnHandler([this] { handleAccept(); });
     reactor->addToPoller(acceptor);
+    auto cmd = std::make_shared<Channel>(STDIN_FILENO);
+    cmd->setEvents(listenEvent_ | EPOLLIN);
+    cmd->setReadHandler([this] {
+        std::string buf;
+        std::cin >> buf;
+        if (buf == "quit") {
+            reactor->quit();
+        } else {
+            std::cout << "command error" << std::endl;
+        }
+    });
+    reactor->addToPoller(cmd);
     reactor->loop();
 }
 
@@ -109,14 +123,23 @@ void Server::handleAccept() {
     } while (listenEvent_ & EPOLLET);
 }
 
-void Server::handleRead(const std::shared_ptr<HttpConn>& client) {
+void Server::handleRead(const std::shared_ptr<HttpConn> &client) {
     assert(client);
     LOG_DEBUG("handleRead() trying to append onRead() to thread pool on fd[%d]", client->GetFd())
     reactor->appendToThreadPool([this, client] { onRead(client); });
     LOG_DEBUG("handleRead() finished to append onRead() to thread pool on fd[%d]", client->GetFd())
 }
 
-void Server::onRead(const std::shared_ptr<HttpConn>& client) {
+void Server::handleRead_keepAlive(const std::shared_ptr<HttpConn> &client) {
+    assert(client);
+    LOG_DEBUG("handleRead_keepAlive() trying to append onRead() to thread pool on fd[%d]",
+              client->GetFd())
+    reactor->appendToThreadPool([this, client] { onRead(client); });
+    LOG_DEBUG("handleRead_keepAlive() finished to append onRead() to thread pool on fd[%d]",
+              client->GetFd())
+}
+
+void Server::onRead(const std::shared_ptr<HttpConn> &client) {
     assert(client);
     int readErrno = 0;
     auto ret = client->read(&readErrno);
@@ -129,20 +152,15 @@ void Server::onRead(const std::shared_ptr<HttpConn>& client) {
     onProcess(client);
 }
 
-void Server::closeConn(const std::shared_ptr<HttpConn>& client) {
+void Server::closeConn(const std::shared_ptr<HttpConn> &client) {
     assert(client);
     auto channel = reactor->getChannel(client->GetFd());
     assert(channel);
-    // reactor->appendToThreadPool([this, channel, client] {
-    //     LOG_DEBUG("closeConn removing fd [%d] from poller", channel->getFd())
-    //     reactor->removeFromPoller(channel);
-    //     client->Close();
-    // });
     reactor->removeFromPoller(channel);
     client->Close();
 }
 
-void Server::onProcess(const std::shared_ptr<HttpConn>& client) {
+void Server::onProcess(const std::shared_ptr<HttpConn> &client) {
     assert(client);
     if (client->process()) {
         reactor->appendToThreadPool([this, client] {
@@ -151,12 +169,14 @@ void Server::onProcess(const std::shared_ptr<HttpConn>& client) {
         });
     } else {
         auto channel = reactor->getChannel(client->GetFd());
+        channel->setReadHandler([this, client] { handleRead_keepAlive(client); });
         channel->setEvents(connEvent_ | EPOLLIN);
         reactor->updatePoller(channel);
+        LOG_DEBUG("onProcess() set handleRead_keepAlive() on client[%d]", client->GetFd())
     }
 }
 
-void Server::handleWrite(const std::shared_ptr<HttpConn>& client) {
+void Server::handleWrite(const std::shared_ptr<HttpConn> &client) {
     assert(client);
     LOG_DEBUG("handleWrite on client[%d] called,trying to append onWrite() to thread pool",
               client->GetFd())
@@ -168,14 +188,15 @@ void Server::handleWrite(const std::shared_ptr<HttpConn>& client) {
               client->GetFd())
 }
 
-void Server::onWrite(const std::shared_ptr<HttpConn>& client) {
+void Server::onWrite(const std::shared_ptr<HttpConn> &client) {
     assert(client);
     int writeErrno = 0;
     auto ret = client->write(&writeErrno);
     if (client->ToWriteBytes() == 0) {
         if (client->IsKeepAlive()) {
-            LOG_DEBUG("onWrite() called onProcess on client[%d]", client->GetFd())
+            LOG_DEBUG("Keep alive called onProcess() on client[%d]", client->GetFd())
             onProcess(client);
+            LOG_DEBUG("Keep alive finished onProcess() on client[%d]", client->GetFd())
             return;
         }
     } else if (ret < 0) {

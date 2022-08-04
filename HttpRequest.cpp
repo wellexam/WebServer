@@ -1,4 +1,5 @@
 #include "HttpRequest.hpp"
+#include "log/log.h"
 #include <regex>
 #include <cerrno>
 #include <mysql/mysql.h> //mysql
@@ -59,7 +60,7 @@ bool HttpRequest::parse(Buffer &buff) {
         }
         buff.RetrieveUntil(lineEnd + 2);
     }
-    // LOG_DEBUG("[%s], [%s], [%s]", method_.c_str(), path_.c_str(), version_.c_str());
+    LOG_DEBUG("[%s], [%s], [%s]", method_.c_str(), path_.c_str(), version_.c_str());
     return true;
 }
 
@@ -86,7 +87,7 @@ bool HttpRequest::ParseRequestLine_(const string &line) {
         state_ = HEADERS;
         return true;
     }
-    // LOG_ERROR("RequestLine Error");
+    LOG_ERROR("RequestLine Error");
     return false;
 }
 
@@ -104,7 +105,7 @@ void HttpRequest::ParseBody_(const string &line) {
     body_ = line;
     ParsePost_();
     state_ = FINISH;
-    // LOG_DEBUG("Body:%s, len:%d", line.c_str(), line.size());
+    LOG_DEBUG("Body:%s, len:%d", line.c_str(), line.size());
 }
 
 int HttpRequest::ConverHex(char ch) {
@@ -120,7 +121,7 @@ void HttpRequest::ParsePost_() {
         ParseFromUrlencoded_();
         if (DEFAULT_HTML_TAG.count(path_)) {
             int tag = DEFAULT_HTML_TAG.find(path_)->second;
-            // LOG_DEBUG("Tag:%d", tag);
+            LOG_DEBUG("Tag:%d", tag);
             if (tag == 0 || tag == 1) {
                 bool isLogin = (tag == 1);
                 if (UserVerify(post_["username"], post_["password"], isLogin)) {
@@ -188,7 +189,8 @@ bool HttpRequest::UserVerify(const string &name, const string &pwd, bool isLogin
     //
     // if(!isLogin) { flag = true; }
     ///* 查询用户及密码 */
-    // snprintf(order, 256, "SELECT username, password FROM user WHERE username='%s' LIMIT 1", name.c_str());
+    // snprintf(order, 256, "SELECT username, password FROM user WHERE username='%s' LIMIT 1",
+    // name.c_str());
     ////LOG_DEBUG("%s", order);
     //
     // if(mysql_query(sql, order)) {
@@ -221,7 +223,8 @@ bool HttpRequest::UserVerify(const string &name, const string &pwd, bool isLogin
     // if(!isLogin && flag == true) {
     //     //LOG_DEBUG("regirster!");
     //     bzero(order, 256);
-    //     snprintf(order, 256,"INSERT INTO user(username, password) VALUES('%s','%s')", name.c_str(), pwd.c_str());
+    //     snprintf(order, 256,"INSERT INTO user(username, password) VALUES('%s','%s')",
+    //     name.c_str(), pwd.c_str());
     //     //LOG_DEBUG( "%s", order);
     //     if(mysql_query(sql, order)) {
     //         //LOG_DEBUG( "Insert error!");

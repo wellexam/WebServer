@@ -29,8 +29,9 @@ class Server {
     void addClient(int fd, sockaddr_in addr);
 
     void handleAccept();
-    void handleRead(const std::shared_ptr<HttpConn>& client);
-    void handleWrite(const std::shared_ptr<HttpConn>& client);
+    void handleRead(const std::shared_ptr<HttpConn> &client);
+    void handleRead_keepAlive(const std::shared_ptr<HttpConn> &client);
+    void handleWrite(const std::shared_ptr<HttpConn> &client);
 
     void onRead(const std::shared_ptr<HttpConn>& client);
     void onWrite(const std::shared_ptr<HttpConn>& client);

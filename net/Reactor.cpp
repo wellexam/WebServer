@@ -29,13 +29,15 @@ void Reactor::loop() {
         ret = poller->poll();
         for (auto &it : ret) {
             LOG_DEBUG("handling fd[%d] at loop %d", it->getFd(), count)
-            threadPool->append([it, count = this->count] {
-                LOG_DEBUG("fd[%d], added to thread pool at loop %d", it->getFd(), count)
-                it->handleEvents();
-                LOG_DEBUG("fd[%d], added to thread pool at loop %d, finished", it->getFd(), count)
-            });
+            // threadPool->append([it, count = this->count] {
+            //     LOG_DEBUG("fd[%d], added to thread pool at loop %d", it->getFd(), count)
+            //     it->handleEvents();
+            //     LOG_DEBUG("fd[%d], added to thread pool at loop %d, finished", it->getFd(),
+            //     count)
+            // });
+            it->handleEvents();
         }
-        doPendingTasks();
+        // doPendingTasks();
         ++count;
     }
     looping_ = false;

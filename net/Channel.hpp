@@ -25,7 +25,6 @@ private:
 public:
     Channel() : events_(0), lastEvents_(0), fd_(0) {}
     explicit Channel(int fd) : events_(0), lastEvents_(0), fd_(fd) {}
-    ~Channel();
     int getFd() const { return fd_; }
     void setFd(int fd) { fd_ = fd; }
 
@@ -71,7 +70,8 @@ public:
     __uint32_t &getEvents() { return events_; }
 
     bool EqualAndUpdateLastEvents() {
-        bool ret = (lastEvents_ == events_);
+        bool ret = (lastEvents_ == events_ && !(lastEvents_ & EPOLLONESHOT));
+        // 如果设置了EPOLLONESHOT,则每次事件触发后都必须重新添加关注事件，否则将不再触发
         lastEvents_ = events_;
         return ret;
     }

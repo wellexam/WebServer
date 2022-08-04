@@ -33,7 +33,7 @@ void Buffer::RetrieveUntil(const char *end) {
 }
 
 void Buffer::RetrieveAll() {
-    bzero(&buffer_[0], buffer_.size());
+    bzero(buffer_.data(), buffer_.size());
     readPos_ = 0;
     writePos_ = 0;
 }
