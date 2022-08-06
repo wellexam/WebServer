@@ -8,7 +8,6 @@
 #include <atomic>
 #include "HttpRequest.hpp"
 #include "HttpResponse.hpp"
-#include "Debug.hpp"
 
 class HttpConn {
 public:

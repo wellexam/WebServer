@@ -24,11 +24,13 @@ void HeapTimer::add(int id, int timeOut, const TimeoutCallBack &cb) {
             siftup_(i);
         }
     }
+    isEnabled.set(id);
     // printf("%d added to timerHeap\n", id);
 }
 void HeapTimer::clear() {
     ref_.clear();
     heap_.clear();
+    isEnabled.clear();
 }
 void HeapTimer::tick() {
     /* 清除超时结点 */
@@ -40,7 +42,9 @@ void HeapTimer::tick() {
         if (std::chrono::duration_cast<MS>(node.expires - Clock::now()).count() > 0) {
             break;
         }
-        node.cb();
+        if (isEnabled.reset_if_true(node.id)) {
+            node.cb();
+        }
         // printf("tick closed %d \n", node.id);
         pop();
     }
@@ -77,6 +81,7 @@ void HeapTimer::del_(size_t index) {
     /* 队尾元素删除 */
     // printf("%d timeout\n", heap_.back().id);
     ref_.erase(heap_.back().id);
+    isEnabled.reset(heap_.back().id);
     heap_.pop_back();
 }
 
@@ -90,6 +95,10 @@ void HeapTimer::SwapNode_(size_t i, size_t j) {
 
 void HeapTimer::heap_size() {
     printf("heap size is %ld cap is %ld\n", heap_.size(), heap_.capacity());
+}
+
+void HeapTimer::disable(int id) {
+    isEnabled.reset(id);
 }
 
 #if four_ary_heap

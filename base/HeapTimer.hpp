@@ -10,8 +10,6 @@
 #include <chrono>
 #include <mutex>
 
-#include "Debug.hpp"
-
 #define four_ary_heap true
 
 using TimeoutCallBack = std::function<void()>;
@@ -25,9 +23,46 @@ struct TimerNode {
     TimeoutCallBack cb;
     bool operator<(const TimerNode &t) const { return expires < t.expires; }
 };
+
+class ConcurrentUnorderedMap {
+    std::mutex mut{};
+    std::unordered_map<int, bool> map{};
+
+public:
+    bool operator[](int id) {
+        std::lock_guard<std::mutex> lk(mut);
+        return map[id];
+    }
+
+    void set(int id) {
+        std::lock_guard<std::mutex> lk(mut);
+        map[id] = true;
+    }
+
+    void reset(int id) {
+        std::lock_guard<std::mutex> lk(mut);
+        map[id] = false;
+    }
+
+    bool reset_if_true(int id) {
+        std::lock_guard<std::mutex> lk(mut);
+        if (map[id]) {
+            map[id] = false;
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    void clear() {
+        std::lock_guard<std::mutex> lk(mut);
+        map.clear();
+    }
+};
+
 class HeapTimer {
 public:
-    HeapTimer() { heap_.reserve(64); }
+    HeapTimer() { heap_.reserve(1 << 10); }
 
     ~HeapTimer() { clear(); }
 
@@ -40,15 +75,14 @@ public:
     // 清空时间堆
     void clear();
 
-    // 拨动一个刻度，从堆顶循环清除当前堆中所有超时节点
-    void tick();
-
     void pop();
 
     // 获得下一个最近的超时时间距当前时间的间隔毫秒数
     int getNextTick();
 
     void heap_size();
+
+    void disable(int id);
 
 private:
     void del_(size_t index);
@@ -59,7 +93,12 @@ private:
 
     void SwapNode_(size_t i, size_t j);
 
+    // 拨动一个刻度，从堆顶循环清除当前堆中所有超时节点
+    void tick();
+
     std::vector<TimerNode> heap_;
 
     std::unordered_map<int, size_t> ref_;
+
+    ConcurrentUnorderedMap isEnabled;
 };

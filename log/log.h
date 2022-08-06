@@ -15,7 +15,7 @@
 #include <cassert>
 #include <sys/stat.h>         //mkdir
 #include "blockqueue.h"
-#include "../Buffer.hpp"
+#include "../base/Buffer.hpp"
 
 class Log {
 public:

@@ -1,6 +1,6 @@
 #include <unistd.h>
 #include "HttpConn.hpp"
-#include "log/log.h"
+#include "../log/log.h"
 
 const char *HttpConn::srcDir;
 std::atomic<int> HttpConn::userCount;
@@ -99,6 +99,10 @@ bool HttpConn::process() {
         response_.Init(srcDir, request_.path(), request_.IsKeepAlive(), 200);
         // response_.Init(srcDir, request_.path(), false, 200);
     } else {
+        if (request_.httpCode
+            == HttpRequest::NO_REQUEST) { // 如果读取到的不是完整请求，返回继续读取数据
+            return false;
+        }
         response_.Init(srcDir, request_.path(), false, 400);
     }
 

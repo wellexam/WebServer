@@ -5,8 +5,6 @@
 #include <string>
 #include <atomic>
 
-#include "Debug.hpp"
-
 class Buffer {
 public:
     Buffer(int initBuffSize = 1024);
