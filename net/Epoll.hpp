@@ -1,16 +1,16 @@
 #pragma once
 
-#include <sys/epoll.h> //epoll_ctl()
 #include <vector>
+#include <unordered_map>
 #include <memory>
 #include "Channel.hpp"
 
 class Epoll {
-    int epollFd;
+    epoll_handle_t epollFd;
     std::vector<epoll_event> events_;
 
     static const int MAXFDS = 100000;
-    std::vector<std::shared_ptr<Channel>> fd2chan_;
+    std::unordered_map<sock_handle_t, std::shared_ptr<Channel>> fd2chan_;
 
 public:
     explicit Epoll();
@@ -23,7 +23,7 @@ public:
 
     void epoll_del(const std::shared_ptr<Channel> &request);
 
-    std::shared_ptr<Channel> getChannel(int fd);
+    std::shared_ptr<Channel> getChannel(sock_handle_t fd);
 
     std::vector<std::shared_ptr<Channel>> poll();
 };

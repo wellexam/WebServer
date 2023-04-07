@@ -3,9 +3,17 @@
 #include "../http/HttpConn.hpp"
 #include "../log/log.h"
 
-#include <fcntl.h>  // fcntl()
+#ifdef _WIN32
+#include <direct.h> // _getcwd
+#include <thread>
+#include <WinUser.h>
+#else
 #include <unistd.h> // close()
 #include <sys/socket.h>
+#endif // _WIN32
+
+
+#include <fcntl.h>  // fcntl()
 #include <thread>
 #include <cstdio>
 #include <iostream>
@@ -23,8 +31,10 @@ Server::Server(int _port, int _threadNum, int _timeoutMS, bool openLog, int logL
     listenEvent_ = EPOLLRDHUP;
     connEvent_ = EPOLLONESHOT | EPOLLRDHUP;
 
+#ifndef _WIN32
     listenEvent_ |= EPOLLET;
     connEvent_ |= EPOLLET;
+#endif // !_WIN32
 
     if (openLog) {
         Log::Instance()->init(logLevel, "./log", ".log", 1024);
@@ -65,6 +75,8 @@ void Server::start() {
     reactor->addToPoller(cmd);
 
     // 设置定时器
+#ifndef _WIN32
+
     int timerFd = timerfd_create(CLOCK_REALTIME, TFD_NONBLOCK | TFD_CLOEXEC);
     auto timer = std::make_shared<Channel>(timerFd);
     timer->setEvents(EPOLLIN);
@@ -75,12 +87,22 @@ void Server::start() {
         auto sec = nextTick / 1000;
         auto nano_sec = (nextTick % 1000) * 1000000;
         sec = std::max(sec, 1);
-        itimerspec new_value{timespec{1}, timespec{sec, nano_sec}};
+        itimerspec new_value{ timespec{1}, timespec{sec, nano_sec} };
         timerfd_settime(timer->getFd(), 0, &new_value, nullptr);
-    });
-    itimerspec new_value{timespec{1}, timespec{1}};
+        });
+    itimerspec new_value{ timespec{1}, timespec{1} };
     timerfd_settime(timerFd, 0, &new_value, nullptr);
     reactor->addToPoller(timer);
+
+#else
+
+    /*std::thread timer([this] {
+        auto nextTick = heapTimer->getNextTick();
+        SetTimer(NULL, NULL, );
+        });*/
+
+
+#endif // !_WIN32
 
     reactor->loop();
 }
@@ -101,7 +123,7 @@ bool Server::initSocket() {
         return false;
     }
 
-    ret = setsockopt(listenFd, SOL_SOCKET, SO_LINGER, &optLinger, sizeof(optLinger));
+    ret = setsockopt(listenFd, SOL_SOCKET, SO_LINGER, (const char*)&optLinger, sizeof(optLinger));
     if (ret < 0) {
         close(listenFd);
         return false;
@@ -110,7 +132,7 @@ bool Server::initSocket() {
     int optval = 1;
     /* 端口复用 */
     /* 只有最后一个套接字会正常接收数据。 */
-    ret = setsockopt(listenFd, SOL_SOCKET, SO_REUSEADDR, (const void *)&optval, sizeof(int));
+    ret = setsockopt(listenFd, SOL_SOCKET, SO_REUSEADDR, (const char *)&optval, sizeof(int));
     if (ret == -1) {
         close(listenFd);
         return false;
@@ -258,7 +280,12 @@ void Server::onWrite(const std::shared_ptr<HttpConn> &client) {
 
 int Server::setFdNonblock(int fd) {
     assert(fd > 0);
+#ifndef _WIN32
     return fcntl(fd, F_SETFL, fcntl(fd, F_GETFD, 0) | O_NONBLOCK);
+#else
+    u_long mode = 1;  // 1 to enable non-blocking socket
+    return ioctlsocket(fd, FIONBIO, &mode);
+#endif // !_WIN32
 }
 
 void Server::sendError(int fd, const char *info) {

@@ -1,8 +1,10 @@
 #pragma once
-
+#ifndef _WIN32
 #include <netinet/in.h>
 #include <sys/timerfd.h>
+#endif // !_WIN32
 
+#include "../base/Platform.hpp"
 #include "../net/Reactor.hpp"
 #include "../base/HeapTimer.hpp"
 

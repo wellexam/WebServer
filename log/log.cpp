@@ -3,7 +3,13 @@
  * @Date         : 2020-06-16
  * @copyleft Apache 2.0
  */
+#ifndef _WIN32
 #include <sys/time.h>
+#else
+#include "../base/time.h"
+#include <direct.h>
+#endif // _WIN32
+
 #include "log.h"
 
 using namespace std;
@@ -81,7 +87,11 @@ void Log::init(int level = 1, const char* path, const char* suffix,
 
         fp_ = fopen(fileName, "a");
         if(fp_ == nullptr) {
+#ifdef _WIN32
+            mkdir(path_);
+#else
             mkdir(path_, 0777);
+#endif // _WIN32
             fp_ = fopen(fileName, "a");
         } 
         assert(fp_ != nullptr);

@@ -4,6 +4,7 @@
 #include <vector>  //readv
 #include <string>
 #include <atomic>
+#include "Platform.hpp"
 
 class Buffer {
 public:

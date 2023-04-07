@@ -1,8 +1,12 @@
 #pragma once
 
-#include <memory>
+#ifndef _WIN32
 #include <sys/eventfd.h>
 #include <unistd.h>
+#endif // !_WIN32
+
+
+#include <memory>
 #include <cassert>
 
 #include "ThreadPool.hpp"

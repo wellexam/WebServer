@@ -4,8 +4,8 @@ project(WebServer)
 set(CMAKE_CXX_STANDARD 14)
 include_directories(./*)
 include_directories(./*/*)
-file(GLOB SOURCES "*.cpp")
-file(GLOB SOURCE "*/*.cpp")
+file(GLOB SOURCES "*.c*")
+file(GLOB SOURCE "*/*.c*")
 
 add_executable(WebServer ${SOURCES} ${SOURCE})
 

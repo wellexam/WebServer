@@ -1,8 +1,14 @@
 #pragma once
 
-#include <sys/types.h>
+#ifdef _WIN32
+#include "../base/Iov.hpp"
+#else
 #include <sys/uio.h>   // readv/writev
 #include <arpa/inet.h> // sockaddr_in
+#endif // _WIN32
+
+
+#include <sys/types.h>
 #include <cstdlib>     // atoi()
 #include <cerrno>
 #include <atomic>

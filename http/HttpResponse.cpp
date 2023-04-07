@@ -1,7 +1,15 @@
 #include "HttpResponse.hpp"
 #include <fcntl.h>    // open
+
+#ifdef _WIN32
+#include <fileapi.h>
+#include "../base/mmap.h"
+#else
 #include <unistd.h>   // close
 #include <sys/mman.h> // mmap, munmap
+#endif // _WIN32
+
+
 
 const unordered_map<string, string> HttpResponse::SUFFIX_TYPE = {
     {".html", "text/html"},          {".xml", "text/xml"},          {".xhtml", "application/xhtml+xml"},
@@ -103,6 +111,19 @@ void HttpResponse::AddHeader_(Buffer &buff) {
     buff.Append("Content-type: " + GetFileType_() + "\r\n");
 }
 
+std::string HttpResponse::GetFileType_() {
+    // 判断文件类型 
+    string::size_type idx = path_.find_last_of('.');
+    if (idx == string::npos) {
+        return "text/plain";
+    }
+    string suffix = path_.substr(idx);
+    if (SUFFIX_TYPE.count(suffix) == 1) {
+        return SUFFIX_TYPE.find(suffix)->second;
+    }
+    return "text/plain";
+}
+
 void HttpResponse::AddContent_(Buffer &buff) {
     int srcFd = open((srcDir_ + path_).data(), O_RDONLY);
     if (srcFd < 0) {
@@ -110,8 +131,8 @@ void HttpResponse::AddContent_(Buffer &buff) {
         return;
     }
 
-    /* 将文件映射到内存提高文件的访问速度
-        MAP_PRIVATE 建立一个写入时拷贝的私有映射*/
+    // 将文件映射到内存提高文件的访问速度
+    //  MAP_PRIVATE 建立一个写入时拷贝的私有映射
     // LOG_DEBUG("file path %s", (srcDir_ + path_).data());
     int *mmRet = (int *)mmap(nullptr, mmFileStat_.st_size, PROT_READ, MAP_PRIVATE, srcFd, 0);
     if (*mmRet == -1) {
@@ -128,19 +149,6 @@ void HttpResponse::UnmapFile() {
         munmap(mmFile_, mmFileStat_.st_size);
         mmFile_ = nullptr;
     }
-}
-
-string HttpResponse::GetFileType_() {
-    /* 判断文件类型 */
-    string::size_type idx = path_.find_last_of('.');
-    if (idx == string::npos) {
-        return "text/plain";
-    }
-    string suffix = path_.substr(idx);
-    if (SUFFIX_TYPE.count(suffix) == 1) {
-        return SUFFIX_TYPE.find(suffix)->second;
-    }
-    return "text/plain";
 }
 
 void HttpResponse::ErrorContent(Buffer &buff, const string &message) {

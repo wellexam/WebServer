@@ -1,4 +1,8 @@
+#ifdef _WIN32
+#else
 #include <unistd.h>
+#endif // _WIN32
+
 #include "HttpConn.hpp"
 #include "../log/log.h"
 

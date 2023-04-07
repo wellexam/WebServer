@@ -1,8 +1,5 @@
 #include "Buffer.hpp"
-
-//#include <iostream>
-#include <unistd.h>  // write
-#include <sys/uio.h> //readv
+#include "Iov.hpp"
 #include <cassert>
 
 Buffer::Buffer(int initBuffSize) : buffer_(initBuffSize), readPos_(0), writePos_(0) {}

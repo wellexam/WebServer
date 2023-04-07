@@ -1,7 +1,17 @@
 #pragma once
 
-#include <sys/epoll.h>
-#include <sys/epoll.h>
+#ifdef _WIN32
+
+#include "../base/wepoll.h"
+
+#else
+
+#include <sys/epoll.h> //epoll_ctl()
+
+#endif // _WIN32
+
+#include "../base/Platform.hpp"
+
 #include <functional>
 #include <memory>
 #include <string>
@@ -10,10 +20,11 @@
 class Channel {
 private:
     typedef std::function<void()> CallBack;
-    int fd_;
-    __uint32_t events_;
-    __uint32_t revents_{};
-    __uint32_t lastEvents_;
+
+    sock_handle_t fd_;
+    uint32_t events_;
+    uint32_t revents_{};
+    uint32_t lastEvents_;
 
 private:
     CallBack readHandler_;
@@ -24,9 +35,9 @@ private:
 
 public:
     Channel() : events_(0), lastEvents_(0), fd_(0) {}
-    explicit Channel(int fd) : events_(0), lastEvents_(0), fd_(fd) {}
-    int getFd() const { return fd_; }
-    void setFd(int fd) { fd_ = fd; }
+    explicit Channel(sock_handle_t fd) : events_(0), lastEvents_(0), fd_(fd) {}
+    sock_handle_t getFd() const { return fd_; }
+    void setFd(sock_handle_t fd) { fd_ = fd; }
 
     void setConnHandler(CallBack &&connHandler) { connHandler_ = connHandler; }
     void setReadHandler(CallBack &&readHandler) { readHandler_ = readHandler; }
@@ -64,10 +75,10 @@ public:
         }
     }
 
-    void setRevents(__uint32_t ev) { revents_ = ev; }
+    void setRevents(uint32_t ev) { revents_ = ev; }
 
-    void setEvents(__uint32_t ev) { events_ = ev; }
-    __uint32_t &getEvents() { return events_; }
+    void setEvents(uint32_t ev) { events_ = ev; }
+    uint32_t &getEvents() { return events_; }
 
     bool EqualAndUpdateLastEvents() {
         bool ret = (lastEvents_ == events_ && !(lastEvents_ & EPOLLONESHOT));
@@ -76,7 +87,7 @@ public:
         return ret;
     }
 
-    __uint32_t getLastEvents() const { return lastEvents_; }
+    uint32_t getLastEvents() const { return lastEvents_; }
 };
 
 typedef std::shared_ptr<Channel> SP_Channel;

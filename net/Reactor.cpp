@@ -1,11 +1,21 @@
 #include "Reactor.hpp"
 
 #include "../log/log.h"
+#include "../base/Platform.hpp"
 
 Reactor::Reactor(int threadNum) :
     threadPool(std::make_shared<ThreadPool>(threadNum)), poller(std::make_shared<Epoll>()),
     pendingList(std::make_shared<PendingList>()), looping_(false), quit_(false) {
-    int ret = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+#ifdef _WIN32
+    sock_handle_t ret = socket(NULL, AF_UNIX, SOCK_STREAM);
+    if (ret == YETI_INVALID_SOCKET) {
+        perror("event socket invalid");
+        return;
+    }
+#else
+    sock_handle_t ret = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+#endif // _WIN32
+
     wakeupChannel = std::make_shared<Channel>(ret);
     wakeupChannel->setEvents(EPOLLIN);
     wakeupChannel->setReadHandler([ret] {
