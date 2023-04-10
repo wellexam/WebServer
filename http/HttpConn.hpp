@@ -21,7 +21,7 @@ public:
 
     ~HttpConn();
 
-    void init(int sockFd, const sockaddr_in &addr);
+    void init(sock_handle_t fd, const sockaddr_in &addr);
 
     ssize_t read(int *saveErrno);
 
@@ -29,7 +29,7 @@ public:
 
     void Close();
 
-    int GetFd() const;
+    sock_handle_t GetFd() const;
 
     int GetPort() const;
 
@@ -48,7 +48,7 @@ public:
     static std::atomic<int> userCount;
 
 private:
-    int fd_;
+    sock_handle_t fd_;
     struct sockaddr_in addr_;
 
     bool isClose_;

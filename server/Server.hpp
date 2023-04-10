@@ -14,7 +14,7 @@ class Server {
     char *srcDir;
     int port;
     bool isClosed = false;
-    int listenFd{};
+    sock_handle_t listenFd{};
     int timeoutMS; /* 毫秒MS */
 
     static const int MAX_FD = 65536;
@@ -22,7 +22,7 @@ class Server {
     uint32_t listenEvent_;
     uint32_t connEvent_;
 
-    std::unordered_map<int, std::shared_ptr<HttpConn>> clients;
+    std::unordered_map<sock_handle_t, std::shared_ptr<HttpConn>> clients;
 
     std::shared_ptr<Reactor> reactor;
 
@@ -30,10 +30,10 @@ class Server {
 
     std::unique_ptr<HeapTimer> heapTimer;
 
-    static void sendError(int fd, const char *info);
+    static void sendError(sock_handle_t fd, const char *info);
 
-    static int setFdNonblock(int fd);
-    void addClient(int fd, sockaddr_in addr);
+    static int setFdNonblock(sock_handle_t fd);
+    void addClient(sock_handle_t fd, sockaddr_in addr);
 
     void handleAccept();
     void handleRead(const std::shared_ptr<HttpConn> &client);

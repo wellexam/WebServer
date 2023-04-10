@@ -86,7 +86,7 @@ public:
 private:
     void del_(size_t index);
 
-    void siftup_(size_t i);
+    void siftup_(int i);
 
     bool siftdown_(size_t index, size_t n);
 

@@ -26,7 +26,7 @@ Server::Server(int _port, int _threadNum, int _timeoutMS, bool openLog, int logL
     strncat(srcDir, "/resources/", 16);
     HttpConn::userCount = 0;
     HttpConn::srcDir = srcDir;
-    HttpConn::isET = true;
+    HttpConn::isET = false;
 
     listenEvent_ = EPOLLRDHUP;
     connEvent_ = EPOLLONESHOT | EPOLLRDHUP;
@@ -61,7 +61,7 @@ void Server::start() {
     reactor->addToPoller(acceptor);
 
     // 从STDIN读取quit命令
-    auto cmd = std::make_shared<Channel>(STDIN_FILENO);
+    /*auto cmd = std::make_shared<Channel>(STDIN_FILENO);
     cmd->setEvents(listenEvent_ | EPOLLIN);
     cmd->setReadHandler([this] {
         std::string buf;
@@ -73,6 +73,7 @@ void Server::start() {
         }
     });
     reactor->addToPoller(cmd);
+    perror("3");*/
 
     // 设置定时器
 #ifndef _WIN32
@@ -109,6 +110,22 @@ void Server::start() {
 
 bool Server::initSocket() {
     int ret;
+#ifdef _WIN32
+    static WSADATA g_WSAData;
+    static bool WinSockIsInit = false;
+    if (!WinSockIsInit)
+    {
+        if (WSAStartup(MAKEWORD(2, 2), &g_WSAData) == 0)
+        {
+            WinSockIsInit = true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+#endif // _WIN32
+
     sockaddr_in addr{};
     if (port > 65535 || port < 1024) {
         return false;
@@ -125,7 +142,7 @@ bool Server::initSocket() {
 
     ret = setsockopt(listenFd, SOL_SOCKET, SO_LINGER, (const char*)&optLinger, sizeof(optLinger));
     if (ret < 0) {
-        close(listenFd);
+        closeFd(listenFd);
         return false;
     }
 
@@ -134,19 +151,19 @@ bool Server::initSocket() {
     /* 只有最后一个套接字会正常接收数据。 */
     ret = setsockopt(listenFd, SOL_SOCKET, SO_REUSEADDR, (const char *)&optval, sizeof(int));
     if (ret == -1) {
-        close(listenFd);
+        closeFd(listenFd);
         return false;
     }
 
     ret = bind(listenFd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
     if (ret < 0) {
-        close(listenFd);
+        closeFd(listenFd);
         return false;
     }
 
     ret = listen(listenFd, 6);
     if (ret < 0) {
-        close(listenFd);
+        closeFd(listenFd);
         return false;
     }
     setFdNonblock(listenFd);
@@ -157,7 +174,7 @@ void Server::handleAccept() {
     sockaddr_in addr{};
     socklen_t len = sizeof(addr);
     do {
-        int fd = accept(listenFd, reinterpret_cast<sockaddr *>(&addr), &len);
+        auto fd = accept(listenFd, reinterpret_cast<sockaddr *>(&addr), &len);
         if (fd <= 0)
             return;
         else if (HttpConn::userCount >= MAX_FD) {
@@ -169,7 +186,7 @@ void Server::handleAccept() {
     } while (listenEvent_ & EPOLLET);
 }
 
-void Server::addClient(int fd, sockaddr_in addr) {
+void Server::addClient(sock_handle_t fd, sockaddr_in addr) {
     assert(fd > 0);
     clients[fd] = std::make_shared<HttpConn>();
     clients[fd]->init(fd, addr);
@@ -278,7 +295,7 @@ void Server::onWrite(const std::shared_ptr<HttpConn> &client) {
     closeConn(client);
 }
 
-int Server::setFdNonblock(int fd) {
+int Server::setFdNonblock(sock_handle_t fd) {
     assert(fd > 0);
 #ifndef _WIN32
     return fcntl(fd, F_SETFL, fcntl(fd, F_GETFD, 0) | O_NONBLOCK);
@@ -288,11 +305,11 @@ int Server::setFdNonblock(int fd) {
 #endif // !_WIN32
 }
 
-void Server::sendError(int fd, const char *info) {
+void Server::sendError(sock_handle_t fd, const char *info) {
     assert(fd > 0);
     auto ret = send(fd, info, strlen(info), 0);
     if (ret < 0) {
         LOG_ERROR("Error on fd[%d]", fd)
     }
-    close(fd);
+    closeFd(fd);
 }

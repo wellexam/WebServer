@@ -18,7 +18,7 @@ HttpConn::HttpConn() {
 
 HttpConn::~HttpConn(){};
 
-void HttpConn::init(int fd, const sockaddr_in &addr) {
+void HttpConn::init(sock_handle_t fd, const sockaddr_in &addr) {
     assert(fd > 0);
     userCount++;
     addr_ = addr;
@@ -34,12 +34,12 @@ void HttpConn::Close() {
     if (!isClose_) {
         isClose_ = true;
         userCount--;
-        close(fd_);
+        closeFd(fd_);
         LOG_INFO("Client[%d](%s:%d) quit, UserCount:%d", fd_, GetIP(), GetPort(), (int)userCount);
     }
 }
 
-int HttpConn::GetFd() const {
+sock_handle_t HttpConn::GetFd() const {
     return fd_;
 };
 

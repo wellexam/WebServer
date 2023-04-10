@@ -15,7 +15,7 @@ Reactor::Reactor(int threadNum) :
 #else
     sock_handle_t ret = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
 #endif // _WIN32
-
+    
     wakeupChannel = std::make_shared<Channel>(ret);
     wakeupChannel->setEvents(EPOLLIN);
     wakeupChannel->setReadHandler([ret] {
@@ -31,7 +31,7 @@ void Reactor::loop() {
     quit_ = false;
     std::vector<SP_Channel> ret;
     count = 0;
-    int wakeFd = wakeupChannel->getFd();
+    sock_handle_t wakeFd = wakeupChannel->getFd();
     LOG_DEBUG("loop started!")
     while (!quit_) {
         ret.clear();
@@ -48,7 +48,7 @@ void Reactor::loop() {
 
 void Reactor::quit() {
     quit_ = true;
-    close(wakeupChannel->getFd());
+    closeFd(wakeupChannel->getFd());
 }
 
 void Reactor::doPendingTasks() {

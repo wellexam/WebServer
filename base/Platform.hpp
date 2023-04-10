@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdio>
+
 #ifdef _WIN32
 #include <WinError.h>
 #include <Ws2tcpip.h>
@@ -18,7 +20,7 @@ typedef SSIZE_T ssize_t;
 #define S_ISREG(mode) _S_ISTYPE((mode), _S_IFREG)
 #define S_ISDIR(mode) _S_ISTYPE((mode), _S_IFDIR)
 #endif
-#define S_IROTH 0
+#define S_IROTH _S_IREAD
 #else
 #include <unistd.h>  // write
 #include <sys/uio.h> //readv
@@ -34,6 +36,8 @@ typedef SSIZE_T ssize_t;
 #define YETI_SOCKET_ERROR SOCKET_ERROR
 #define YETI_INVALID_SOCKET INVALID_SOCKET
 
+#define closeFd(s) (closesocket(s))
+
 using epoll_handle_t = HANDLE;
 using sock_handle_t = SOCKET;
 
@@ -46,6 +50,8 @@ using sock_handle_t = SOCKET;
 typedef int YETISocketFD;
 #define YETI_SOCKET_ERROR (-1)
 #define YETI_INVALID_SOCKET (-1)
+
+#define closeFd(s) (close(s))
 
 using epoll_handle_t = int;
 using sock_handle_t = int;

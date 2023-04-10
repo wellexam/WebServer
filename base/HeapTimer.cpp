@@ -103,9 +103,11 @@ void HeapTimer::disable(int id) {
 
 #if four_ary_heap
 
-void HeapTimer::siftup_(size_t i) {
+void HeapTimer::siftup_(int i) {
     assert(i >= 0 && i < heap_.size());
-    size_t j = (i - 1) / 4;
+    if (i == 0)
+        return;
+    int j = (i - 1) / 4;
     while (j >= 0) {
         if (heap_[j] < heap_[i]) {
             break;
@@ -140,7 +142,7 @@ bool HeapTimer::siftdown_(size_t index, size_t n) {
 
 #else
 
-void HeapTimer::siftup_(size_t i) {
+void HeapTimer::siftup_(int i) {
     assert(i >= 0 && i < heap_.size());
     size_t j = (i - 1) / 2;
     while (j >= 0) {

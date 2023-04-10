@@ -56,7 +56,11 @@ public:
 private:
     void wakeup() {
         char buf;
+#ifdef _WIN32
+        send(wakeupChannel->getFd(), &buf, sizeof buf, 0);
+#else
         write(wakeupChannel->getFd(), &buf, sizeof buf);
+#endif // _WIN32
     }
 
     void doPendingTasks();
