@@ -38,7 +38,6 @@ void Epoll::epoll_add(const SP_Channel &request) {
     request->EqualAndUpdateLastEvents();
 
     fd2chan_[fd] = request;
-    perror("1");
     if (epoll_ctl(epollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
         perror("epoll_add error");
         fd2chan_[fd].reset();

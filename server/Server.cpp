@@ -72,8 +72,7 @@ void Server::start() {
             std::cout << "command error" << std::endl;
         }
     });
-    reactor->addToPoller(cmd);
-    perror("3");*/
+    reactor->addToPoller(cmd);*/
 
     // 设置定时器
 #ifndef _WIN32
