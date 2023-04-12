@@ -37,11 +37,17 @@ void Epoll::epoll_add(const SP_Channel &request) {
 
     request->EqualAndUpdateLastEvents();
 
-    fd2chan_[fd] = request;
+    {
+        std::unique_lock<std::shared_mutex> lk(mut);
+        fd2chan_[fd] = request;
+    }
     if (epoll_ctl(epollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
         perror("epoll_add error");
-        fd2chan_[fd].reset();
-        fd2chan_.erase(fd);
+        {
+            std::unique_lock<std::shared_mutex> lk(mut);
+            fd2chan_[fd].reset();
+            fd2chan_.erase(fd);
+        }
     } else {
         LOG_DEBUG("fd [%d] added to poller.", fd)
     }
@@ -56,8 +62,11 @@ void Epoll::epoll_mod(const SP_Channel &request) {
         event.events = request->getEvents();
         if (epoll_ctl(epollFd, EPOLL_CTL_MOD, fd, &event) < 0) {
             perror("epoll_mod error");
-            fd2chan_[fd].reset();
-            fd2chan_.erase(fd);
+            {
+                std::unique_lock<std::shared_mutex> lk(mut);
+                fd2chan_[fd].reset();
+                fd2chan_.erase(fd);
+            }
             LOG_ERROR("Error happened when modifying fd [%d].", fd)
         } else {
             LOG_DEBUG("fd [%d] modified", fd)
@@ -77,8 +86,11 @@ void Epoll::epoll_del(const SP_Channel &request) {
     } else {
         LOG_DEBUG("fd [%d] deleted", fd)
     }
-    fd2chan_[fd].reset();
-    fd2chan_.erase(fd);
+    {
+        std::unique_lock<std::shared_mutex> lk(mut);
+        fd2chan_[fd].reset();
+        fd2chan_.erase(fd);
+    }
 }
 
 // 返回活跃事件数
@@ -96,9 +108,13 @@ std::vector<SP_Channel> Epoll::poll() {
         for (int i = 0; i < event_count; ++i) {
             // 获取有事件产生的描述符
             int fd = events_[i].data.fd;
-            LOG_DEBUG("fd [%d] active", fd)
 
-            SP_Channel cur_req = fd2chan_[fd];
+            SP_Channel cur_req;
+            LOG_DEBUG("fd [%d] active", fd)
+            {
+                std::shared_lock<std::shared_mutex> lk(mut);
+                cur_req = fd2chan_[fd];
+            }
 
             if (cur_req) {
                 cur_req->setRevents(events_[i].events);
@@ -113,5 +129,10 @@ std::vector<SP_Channel> Epoll::poll() {
     }
 }
 std::shared_ptr<Channel> Epoll::getChannel(sock_handle_t fd) {
-    return fd2chan_[fd];
+    SP_Channel ret;
+    {
+        std::shared_lock<std::shared_mutex> lk(mut);
+        ret = fd2chan_[fd];
+    }
+    return ret;
 }

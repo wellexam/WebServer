@@ -22,6 +22,8 @@ class Server {
     uint32_t listenEvent_;
     uint32_t connEvent_;
 
+    mutable std::shared_mutex mutex_;
+
     std::unordered_map<sock_handle_t, std::shared_ptr<HttpConn>> clients;
 
     std::shared_ptr<Reactor> reactor;

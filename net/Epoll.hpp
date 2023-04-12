@@ -3,6 +3,8 @@
 #include <vector>
 #include <unordered_map>
 #include <memory>
+#include <mutex>
+#include <shared_mutex>
 #include "Channel.hpp"
 
 class Epoll {
@@ -10,6 +12,7 @@ class Epoll {
     std::vector<epoll_event> events_;
 
     static const int MAXFDS = 100000;
+    mutable std::shared_mutex mut;
     std::unordered_map<sock_handle_t, std::shared_ptr<Channel>> fd2chan_;
 
 public:

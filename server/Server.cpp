@@ -187,11 +187,19 @@ void Server::handleAccept() {
 
 void Server::addClient(sock_handle_t fd, sockaddr_in addr) {
     assert(fd > 0);
-    clients[fd] = std::make_shared<HttpConn>();
-    clients[fd]->init(fd, addr);
+    {
+        std::unique_lock<std::shared_mutex> ulk(mutex_);
+        clients[fd] = std::make_shared<HttpConn>();
+    }
+    {
+        std::shared_lock<std::shared_mutex> lk(mutex_);
+        clients[fd]->init(fd, addr);
+    }
     auto channel = std::make_shared<Channel>(fd);
     channel->setEvents(connEvent_ | EPOLLIN);
+    std::shared_lock<std::shared_mutex> lk(mutex_);
     auto client = clients[fd];
+    lk.unlock();
     assert(client);
     assert(channel);
     channel->setReadHandler([this, client] { handleRead(client); });
