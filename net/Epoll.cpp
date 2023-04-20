@@ -30,7 +30,7 @@ Epoll::~Epoll() {
 // 注册新描述符
 void Epoll::epoll_add(const SP_Channel &request) {
     assert(request);
-    sock_handle_t fd = request->getFd();
+    YetiSocketFD fd = request->getFd();
     epoll_event event{};
     event.data.fd = fd;
     event.events = request->getEvents();
@@ -55,7 +55,7 @@ void Epoll::epoll_add(const SP_Channel &request) {
 
 // 修改描述符状态
 void Epoll::epoll_mod(const SP_Channel &request) {
-    sock_handle_t fd = request->getFd();
+    YetiSocketFD fd = request->getFd();
     if (!request->EqualAndUpdateLastEvents()) {
         epoll_event event{};
         event.data.fd = fd;
@@ -76,7 +76,7 @@ void Epoll::epoll_mod(const SP_Channel &request) {
 
 // 从epoll中删除描述符
 void Epoll::epoll_del(const SP_Channel &request) {
-    sock_handle_t fd = request->getFd();
+    YetiSocketFD fd = request->getFd();
     epoll_event event{};
     event.data.fd = fd;
     event.events = request->getLastEvents();
@@ -128,7 +128,7 @@ std::vector<SP_Channel> Epoll::poll() {
             return req_data;
     }
 }
-std::shared_ptr<Channel> Epoll::getChannel(sock_handle_t fd) {
+std::shared_ptr<Channel> Epoll::getChannel(YetiSocketFD fd) {
     SP_Channel ret;
     {
         std::shared_lock<std::shared_mutex> lk(mut);

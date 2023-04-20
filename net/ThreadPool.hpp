@@ -38,10 +38,6 @@ public:
         }
     }
     ~ThreadPool() {
-        //{
-        //    std::lock_guard<std::mutex> lk(pool->mut);
-        //    pool->isClosed = true;
-        //}
         pool->isClosed = true;
         pool->cond.notify_all();
     }

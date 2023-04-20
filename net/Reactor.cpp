@@ -7,13 +7,13 @@ Reactor::Reactor(int threadNum) :
     threadPool(std::make_shared<ThreadPool>(threadNum)), poller(std::make_shared<Epoll>()),
     pendingList(std::make_shared<PendingList>()), looping_(false), quit_(false) {
 #ifdef _WIN32
-    sock_handle_t ret = socket(NULL, AF_UNIX, SOCK_STREAM);
+    YetiSocketFD ret = socket(NULL, AF_UNIX, SOCK_STREAM);
     if (ret == YETI_INVALID_SOCKET) {
         perror("event socket invalid");
         return;
     }
 #else
-    sock_handle_t ret = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+    YetiSocketFD ret = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
 #endif // _WIN32
     
     wakeupChannel = std::make_shared<Channel>(ret);
@@ -31,7 +31,7 @@ void Reactor::loop() {
     quit_ = false;
     std::vector<SP_Channel> ret;
     count = 0;
-    sock_handle_t wakeFd = wakeupChannel->getFd();
+    YetiSocketFD wakeFd = wakeupChannel->getFd();
     LOG_DEBUG("loop started!")
     while (!quit_) {
         ret.clear();
@@ -48,7 +48,7 @@ void Reactor::loop() {
 
 void Reactor::quit() {
     quit_ = true;
-    closeFd(wakeupChannel->getFd());
+    SocketClose(wakeupChannel->getFd());
 }
 
 void Reactor::doPendingTasks() {

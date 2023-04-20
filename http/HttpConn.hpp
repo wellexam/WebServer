@@ -21,7 +21,7 @@ public:
 
     ~HttpConn();
 
-    void init(sock_handle_t fd, const sockaddr_in &addr);
+    void init(YetiSocketFD fd, const sockaddr_in &addr);
 
     ssize_t read(int *saveErrno);
 
@@ -29,7 +29,7 @@ public:
 
     void Close();
 
-    sock_handle_t GetFd() const;
+    YetiSocketFD GetFd() const;
 
     int GetPort() const;
 
@@ -48,7 +48,7 @@ public:
     static std::atomic<int> userCount;
 
 private:
-    sock_handle_t fd_;
+    YetiSocketFD fd_;
     struct sockaddr_in addr_;
 
     bool isClose_;

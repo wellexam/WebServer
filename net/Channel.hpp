@@ -21,7 +21,7 @@ class Channel {
 private:
     typedef std::function<void()> CallBack;
 
-    sock_handle_t fd_;
+    YetiSocketFD fd_;
     uint32_t events_;
     uint32_t revents_{};
     uint32_t lastEvents_;
@@ -35,9 +35,9 @@ private:
 
 public:
     Channel() : events_(0), lastEvents_(0), fd_(0) {}
-    explicit Channel(sock_handle_t fd) : events_(0), lastEvents_(0), fd_(fd) {}
-    sock_handle_t getFd() const { return fd_; }
-    void setFd(sock_handle_t fd) { fd_ = fd; }
+    explicit Channel(YetiSocketFD fd) : events_(0), lastEvents_(0), fd_(fd) {}
+    YetiSocketFD getFd() const { return fd_; }
+    void setFd(YetiSocketFD fd) { fd_ = fd; }
 
     void setConnHandler(CallBack &&connHandler) { connHandler_ = connHandler; }
     void setReadHandler(CallBack &&readHandler) { readHandler_ = readHandler; }

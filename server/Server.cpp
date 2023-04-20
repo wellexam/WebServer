@@ -31,10 +31,8 @@ Server::Server(int _port, int _threadNum, int _timeoutMS, bool openLog, int logL
     listenEvent_ = EPOLLRDHUP;
     connEvent_ = EPOLLONESHOT | EPOLLRDHUP;
 
-#ifndef _WIN32
     listenEvent_ |= EPOLLET;
     connEvent_ |= EPOLLET;
-#endif // !_WIN32
 
     if (openLog) {
         Log::Instance()->init(logLevel, "./log", ".log", 1024);
@@ -44,6 +42,7 @@ Server::Server(int _port, int _threadNum, int _timeoutMS, bool openLog, int logL
 
 Server::~Server() {
     reactor->quit();
+    DestroySocket();
     isClosed = true;
     free(srcDir);
     LOG_DEBUG("Server quited.")
@@ -59,20 +58,6 @@ void Server::start() {
     acceptor->setEvents(listenEvent_ | EPOLLIN);
     acceptor->setConnHandler([this] { handleAccept(); });
     reactor->addToPoller(acceptor);
-
-    // 从STDIN读取quit命令
-    /*auto cmd = std::make_shared<Channel>(STDIN_FILENO);
-    cmd->setEvents(listenEvent_ | EPOLLIN);
-    cmd->setReadHandler([this] {
-        std::string buf;
-        std::cin >> buf;
-        if (buf == "quit") {
-            reactor->quit();
-        } else {
-            std::cout << "command error" << std::endl;
-        }
-    });
-    reactor->addToPoller(cmd);*/
 
     // 设置定时器
 #ifndef _WIN32
@@ -108,64 +93,13 @@ void Server::start() {
 }
 
 bool Server::initSocket() {
-    int ret;
-#ifdef _WIN32
-    static WSADATA g_WSAData;
-    static bool WinSockIsInit = false;
-    if (!WinSockIsInit)
-    {
-        if (WSAStartup(MAKEWORD(2, 2), &g_WSAData) == 0)
-        {
-            WinSockIsInit = true;
-        }
-        else
-        {
-            return false;
-        }
-    }
-#endif // _WIN32
-
-    sockaddr_in addr{};
     if (port > 65535 || port < 1024) {
         return false;
     }
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    addr.sin_port = htons(port);
-    struct linger optLinger = {0};
-
-    listenFd = socket(AF_INET, SOCK_STREAM, 0);
-    if (listenFd < 0) {
+    listenFd = Listen("0.0.0.0", port, 6, true);
+    if (listenFd == YETI_INVALID_SOCKET)
         return false;
-    }
-
-    ret = setsockopt(listenFd, SOL_SOCKET, SO_LINGER, (const char*)&optLinger, sizeof(optLinger));
-    if (ret < 0) {
-        closeFd(listenFd);
-        return false;
-    }
-
-    int optval = 1;
-    /* 端口复用 */
-    /* 只有最后一个套接字会正常接收数据。 */
-    ret = setsockopt(listenFd, SOL_SOCKET, SO_REUSEADDR, (const char *)&optval, sizeof(int));
-    if (ret == -1) {
-        closeFd(listenFd);
-        return false;
-    }
-
-    ret = bind(listenFd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
-    if (ret < 0) {
-        closeFd(listenFd);
-        return false;
-    }
-
-    ret = listen(listenFd, 6);
-    if (ret < 0) {
-        closeFd(listenFd);
-        return false;
-    }
-    setFdNonblock(listenFd);
+    SocketNonblock(listenFd);
     return true;
 }
 
@@ -173,8 +107,8 @@ void Server::handleAccept() {
     sockaddr_in addr{};
     socklen_t len = sizeof(addr);
     do {
-        auto fd = accept(listenFd, reinterpret_cast<sockaddr *>(&addr), &len);
-        if (fd <= 0)
+        auto fd = Accept(listenFd, reinterpret_cast<sockaddr *>(&addr), &len);
+        if (fd == YETI_INVALID_SOCKET)
             return;
         else if (HttpConn::userCount >= MAX_FD) {
             sendError(fd, "Server busy!");
@@ -185,7 +119,7 @@ void Server::handleAccept() {
     } while (listenEvent_ & EPOLLET);
 }
 
-void Server::addClient(sock_handle_t fd, sockaddr_in addr) {
+void Server::addClient(YetiSocketFD fd, sockaddr_in addr) {
     assert(fd > 0);
     {
         std::unique_lock<std::shared_mutex> ulk(mutex_);
@@ -213,7 +147,7 @@ void Server::addClient(sock_handle_t fd, sockaddr_in addr) {
         LOG_DEBUG("timeout callback() called on client[%d]", client->GetFd())
         closeConn(client);
     });
-    setFdNonblock(fd);
+    SocketNonblock(fd);
 }
 
 void Server::handleRead(const std::shared_ptr<HttpConn> &client) {
@@ -286,7 +220,7 @@ void Server::onWrite(const std::shared_ptr<HttpConn> &client) {
             return;
         }
     } else if (ret < 0) {
-        if (writeErrno == EAGAIN) {
+        if (writeErrno == YETI_EWOULDBLOCK) {
             auto channel = reactor->getChannel(client->GetFd());
             channel->setEvents(connEvent_ | EPOLLOUT);
             channel->setWriteHandler([this, client] {
@@ -302,21 +236,11 @@ void Server::onWrite(const std::shared_ptr<HttpConn> &client) {
     closeConn(client);
 }
 
-int Server::setFdNonblock(sock_handle_t fd) {
+void Server::sendError(YetiSocketFD fd, const char *info) {
     assert(fd > 0);
-#ifndef _WIN32
-    return fcntl(fd, F_SETFL, fcntl(fd, F_GETFD, 0) | O_NONBLOCK);
-#else
-    u_long mode = 1;  // 1 to enable non-blocking socket
-    return ioctlsocket(fd, FIONBIO, &mode);
-#endif // !_WIN32
-}
-
-void Server::sendError(sock_handle_t fd, const char *info) {
-    assert(fd > 0);
-    auto ret = send(fd, info, strlen(info), 0);
+    auto ret = SocketSend(fd, info, strlen(info));
     if (ret < 0) {
         LOG_ERROR("Error on fd[%d]", fd)
     }
-    closeFd(fd);
+    SocketClose(fd);
 }

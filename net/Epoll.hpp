@@ -8,12 +8,12 @@
 #include "Channel.hpp"
 
 class Epoll {
-    epoll_handle_t epollFd;
+    YetiEpollFD epollFd;
     std::vector<epoll_event> events_;
 
     static const int MAXFDS = 100000;
     mutable std::shared_mutex mut;
-    std::unordered_map<sock_handle_t, std::shared_ptr<Channel>> fd2chan_;
+    std::unordered_map<YetiSocketFD, std::shared_ptr<Channel>> fd2chan_;
 
 public:
     explicit Epoll();
@@ -26,7 +26,7 @@ public:
 
     void epoll_del(const std::shared_ptr<Channel> &request);
 
-    std::shared_ptr<Channel> getChannel(sock_handle_t fd);
+    std::shared_ptr<Channel> getChannel(YetiSocketFD fd);
 
     std::vector<std::shared_ptr<Channel>> poll();
 };
